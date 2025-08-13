@@ -156,7 +156,7 @@ const Dashboard = () => {
         {leaders.map((leader) => (
           <div key={leader.id} style={styles.card}>
             <img
-              src={leader.photo_url || 'https://via.placeholder.com/100?text=👤'}
+              src={leader.photo_url || 'https://placehold.co/600x400@2x.png'}
               alt={leader.name}
               style={styles.avatar}
             />

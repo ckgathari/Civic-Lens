@@ -1,147 +1,158 @@
-// src/pages/SignUp.jsx
-import React, { useState } from "react";
-import supabase from "../supabaseClient";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import  supabase  from '../supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
-export default function SignUp() {
+const SignUp = () => {
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    password: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLeader, setIsLeader] = useState(false);
-  const [isAspirant, setIsAspirant] = useState(false);
-  const [error, setError] = useState("");
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    setError("");
+    setLoading(true);
+    setMessage('');
 
-    if (!fullName.trim() || !email.trim() || !password.trim()) {
-      setError("Please fill in all required fields.");
-      return;
+    const { error } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage('Sign-up successful! Please check your email to confirm your account.');
+      setTimeout(() => {
+        navigate('/login');
+      }, 3000); // Redirect after 3 seconds
     }
+  };
 
-    try {
-      // Step 1: Create user in Supabase Auth
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName },
-        },
-      });
-
-      if (signUpError) throw signUpError;
-
-      const user = signUpData?.user;
-      if (!user) {
-        setError("Sign-up failed. Please try again.");
-        return;
-      }
-
-      // Step 2: Insert placeholder profile row
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert([
-          {
-            id: user.id,
-            full_name: fullName,
-            is_leader: isLeader,
-            is_aspirant: isAspirant,
-          },
-        ]);
-
-      if (profileError) {
-        console.error("Error inserting placeholder profile:", profileError.message);
-      }
-
-      // Step 3: Always redirect to login after signup
-      alert("Sign-up successful! Please check your email to confirm your account.");
-      navigate("/login");
-
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "An unexpected error occurred.");
+  const styles = {
+    container: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#f4f4f4'
+    },
+    form: {
+      background: 'white',
+      padding: '30px',
+      borderRadius: '10px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+      width: '350px'
+    },
+    title: {
+      textAlign: 'center',
+      marginBottom: '20px',
+      color: '#333'
+    },
+    input: {
+      width: '100%',
+      padding: '10px',
+      marginBottom: '10px',
+      borderRadius: '5px',
+      border: '1px solid #ccc'
+    },
+    button: {
+      width: '100%',
+      padding: '10px',
+      backgroundColor: '#4CAF50',
+      color: 'white',
+      border: 'none',
+      borderRadius: '5px',
+      cursor: 'pointer',
+      fontSize: '16px'
+    },
+    message: {
+      marginTop: '15px',
+      textAlign: 'center'
+    },
+    link: {
+      color: '#4CAF50',
+      textDecoration: 'none',
+      fontWeight: 'bold'
     }
   };
 
   return (
-    <div
-      style={{
-        maxWidth: "400px",
-        margin: "40px auto",
-        padding: "20px",
-        background: "#fff",
-        borderRadius: "10px",
-        boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-      }}
-    >
-      <h2 style={{ textAlign: "center" }}>Sign Up</h2>
-      {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}
-      <form onSubmit={handleSignUp}>
-        <div style={{ marginBottom: "15px" }}>
-          <label>Full Name</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            style={{ width: "100%", padding: "10px" }}
-          />
-        </div>
-        <div style={{ marginBottom: "15px" }}>
-          <label>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", padding: "10px" }}
-          />
-        </div>
-        <div style={{ marginBottom: "15px" }}>
-          <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", padding: "10px" }}
-          />
-        </div>
-        <div style={{ marginBottom: "10px" }}>
-          <input
-            type="checkbox"
-            checked={isLeader}
-            onChange={(e) => {
-              setIsLeader(e.target.checked);
-              if (e.target.checked) setIsAspirant(false);
-            }}
-          />{" "}
-          Leader
-        </div>
-        <div style={{ marginBottom: "20px" }}>
-          <input
-            type="checkbox"
-            checked={isAspirant}
-            onChange={(e) => {
-              setIsAspirant(e.target.checked);
-              if (e.target.checked) setIsLeader(false);
-            }}
-          />{" "}
-          Aspirant
-        </div>
-        <button
-          type="submit"
-          style={{
-            width: "100%",
-            padding: "10px",
-            background: "#4CAF50",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-          }}
-        >
-          Sign Up
+    <div style={styles.container}>
+      <form onSubmit={handleSignUp} style={styles.form}>
+        <h2 style={styles.title}>Sign Up</h2>
+
+        <input
+          type="text"
+          name="first_name"
+          placeholder="First Name"
+          value={formData.first_name}
+          onChange={handleChange}
+          required
+          style={styles.input}
+        />
+        <input
+          type="text"
+          name="last_name"
+          placeholder="Last Name"
+          value={formData.last_name}
+          onChange={handleChange}
+          required
+          style={styles.input}
+        />
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={formData.email}
+          onChange={handleChange}
+          required
+          style={styles.input}
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={formData.password}
+          onChange={handleChange}
+          required
+          style={{ ...styles.input, marginBottom: '20px' }}
+        />
+
+        <button type="submit" disabled={loading} style={styles.button}>
+          {loading ? 'Signing Up...' : 'Sign Up'}
         </button>
+
+        {message && (
+          <p
+            style={{
+              ...styles.message,
+              color: message.includes('successful') ? 'green' : 'red'
+            }}
+          >
+            {message}
+          </p>
+        )}
+
+        <p style={{ textAlign: 'center', marginTop: '15px' }}>
+          Already have an account?{' '}
+          <a href="/login" style={styles.link}>
+            Login here
+          </a>
+        </p>
       </form>
     </div>
   );
-}
+};
+
+export default SignUp;
