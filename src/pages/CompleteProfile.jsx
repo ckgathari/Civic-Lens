@@ -1,206 +1,251 @@
-import React, { useState, useEffect } from "react";
-import  supabase  from "../supabaseClient";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import supabase from '../supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
-export default function CompleteProfile() {
-  const navigate = useNavigate();
-
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [nationalId, setNationalId] = useState("");
-  const [position, setPosition] = useState("");
-  const [countyId, setCountyId] = useState("");
-  const [constituencyId, setConstituencyId] = useState("");
-  const [wardId, setWardId] = useState("");
-  const [photoFile, setPhotoFile] = useState(null);
-
+const CompleteProfile = () => {
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    county_id: '',
+    constituency_id: '',
+    ward_id: '',
+    photo: null
+  });
   const [counties, setCounties] = useState([]);
   const [constituencies, setConstituencies] = useState([]);
   const [wards, setWards] = useState([]);
-
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  // Fetch counties on load
   useEffect(() => {
     fetchCounties();
   }, []);
 
-  async function fetchCounties() {
-    const { data, error } = await supabase.from("counties").select("id, name");
+  const fetchCounties = async () => {
+    const { data, error } = await supabase
+      .from('counties')
+      .select('*')
+      .order('name');
     if (!error) setCounties(data);
-  }
+  };
 
-  // Fetch constituencies when county changes
-  useEffect(() => {
-    if (countyId) fetchConstituencies(countyId);
-  }, [countyId]);
-
-  async function fetchConstituencies(countyId) {
+  const fetchConstituencies = async (countyId) => {
+    setConstituencies([]);
+    setWards([]);
     const { data, error } = await supabase
-      .from("constituencies")
-      .select("id, name")
-      .eq("county_id", countyId);
+      .from('constituencies')
+      .select('*')
+      .eq('county_id', countyId)
+      .order('name');
     if (!error) setConstituencies(data);
-  }
+  };
 
-  // Fetch wards when constituency changes
-  useEffect(() => {
-    if (constituencyId) fetchWards(constituencyId);
-  }, [constituencyId]);
-
-  async function fetchWards(constituencyId) {
+  const fetchWards = async (constituencyId) => {
+    setWards([]);
     const { data, error } = await supabase
-      .from("wards")
-      .select("id, name")
-      .eq("constituency_id", constituencyId);
+      .from('wards')
+      .select('*')
+      .eq('constituency_id', constituencyId)
+      .order('name');
     if (!error) setWards(data);
-  }
+  };
 
-  async function handleSubmit(e) {
+  const handleChange = (e) => {
+    const { name, value, files } = e.target;
+    if (files) {
+      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // Basic validations
-    if (!fullName || !phone || !nationalId || !position || !countyId || !photoFile) {
-      alert("Please fill in all required fields and upload a photo.");
+    // Get logged-in user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      alert("Please log in again to complete your profile.");
       setLoading(false);
       return;
     }
 
-    const phoneRegex = /^(07|01)\d{8}$/;
-    if (!phoneRegex.test(phone)) {
-      alert("Phone must start with 07 or 01 and be exactly 10 digits.");
-      setLoading(false);
-      return;
-    }
+    // Upload profile photo if provided
+    let photoUrl = null;
+    if (formData.photo) {
+      const fileExt = formData.photo.name.split('.').pop();
+      const fileName = `${user.id}.${fileExt}`;
+      const filePath = `profile-photos/${fileName}`;
 
-    if (!/^\d{7,8}$/.test(nationalId) || /^(12345678|0000000)$/.test(nationalId)) {
-      alert("National ID must be 7 or 8 digits and not a simple pattern.");
-      setLoading(false);
-      return;
-    }
+      const { error: uploadError } = await supabase.storage
+        .from('profile-photos')
+        .upload(filePath, formData.photo, { upsert: true });
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("User not logged in");
+      if (uploadError) {
+        alert(uploadError.message);
         setLoading(false);
         return;
       }
 
-      // Upload photo
-      const fileExt = photoFile.name.split(".").pop();
-      const filePath = `profile-photos/${user.id}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("photos")
-        .upload(filePath, photoFile, { upsert: true });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = supabase
-        .storage
-        .from("photos")
+      const { data: publicUrlData } = supabase.storage
+        .from('profile-photos')
         .getPublicUrl(filePath);
 
-      // Insert or update profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          full_name: fullName,
-          phone: phone,
-          national_id: nationalId,
-          position: position,
-          county_id: countyId,
-          constituency_id: constituencyId || null,
-          ward_id: wardId || null,
-          photo_url: publicUrlData.publicUrl,
-          is_leader: position ? position.toLowerCase() !== "aspirant" : false,
-          is_aspirant: position ? position.toLowerCase() === "aspirant" : false
-        });
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      alert("Profile completed successfully!");
-      navigate("/dashboard");
-
-    } catch (err) {
-      console.error("Error completing profile:", err.message);
-      alert("Error completing profile: " + err.message);
+      photoUrl = publicUrlData.publicUrl;
     }
 
+    // Upsert profile (matches user.id to pass RLS)
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: user.id,
+      first_name: formData.first_name.trim(),
+      last_name: formData.last_name.trim(),
+      county_id: formData.county_id,
+      constituency_id: formData.constituency_id,
+      ward_id: formData.ward_id,
+      photo_url: photoUrl
+    });
+
     setLoading(false);
-  }
+
+    if (profileError) {
+      alert(profileError.message);
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
+  const styles = {
+    container: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#eef2f3',
+      padding: '20px'
+    },
+    form: {
+      background: 'white',
+      padding: '30px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+      width: '100%',
+      maxWidth: '420px'
+    },
+    title: {
+      textAlign: 'center',
+      marginBottom: '20px',
+      color: '#333',
+      fontSize: '24px',
+      fontWeight: '600'
+    },
+    input: {
+      width: '100%',
+      padding: '10px',
+      marginBottom: '15px',
+      border: '1px solid #ccc',
+      borderRadius: '6px',
+      fontSize: '15px'
+    },
+    button: {
+      width: '100%',
+      padding: '12px',
+      backgroundColor: '#4CAF50',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      fontSize: '16px',
+      fontWeight: '600'
+    }
+  };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "auto", padding: "20px", fontFamily: "Arial" }}>
-      <h2 style={{ textAlign: "center", color: "#333" }}>Complete Your Profile</h2>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-        
-        <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} />
+    <div style={styles.container}>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <h2 style={styles.title}>Complete Your Profile</h2>
 
-        <input type="text" placeholder="Phone (07xxxxxxxx)" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} />
+        <input
+          type="text"
+          name="first_name"
+          placeholder="First Name"
+          value={formData.first_name}
+          onChange={handleChange}
+          required
+          style={styles.input}
+        />
 
-        <input type="text" placeholder="National ID" value={nationalId} onChange={e => setNationalId(e.target.value)} style={inputStyle} />
+        <input
+          type="text"
+          name="last_name"
+          placeholder="Last Name"
+          value={formData.last_name}
+          onChange={handleChange}
+          required
+          style={styles.input}
+        />
 
-        <select value={position} onChange={e => setPosition(e.target.value)} style={inputStyle}>
-          <option value="">Select Position</option>
-          <option value="President">President</option>
-          <option value="Governor">Governor</option>
-          <option value="Senator">Senator</option>
-          <option value="Woman Rep">Woman Rep</option>
-          <option value="MP">MP</option>
-          <option value="MCA">MCA</option>
-          <option value="Aspirant">Aspirant</option>
-        </select>
-
-        <select value={countyId} onChange={e => setCountyId(e.target.value)} style={inputStyle}>
+        <select
+          name="county_id"
+          value={formData.county_id}
+          onChange={(e) => {
+            handleChange(e);
+            fetchConstituencies(e.target.value);
+          }}
+          required
+          style={styles.input}
+        >
           <option value="">Select County</option>
-          {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {counties.map((county) => (
+            <option key={county.id} value={county.id}>{county.name}</option>
+          ))}
         </select>
 
-        {constituencies.length > 0 && (
-          <select value={constituencyId} onChange={e => setConstituencyId(e.target.value)} style={inputStyle}>
-            <option value="">Select Constituency</option>
-            {constituencies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        )}
+        <select
+          name="constituency_id"
+          value={formData.constituency_id}
+          onChange={(e) => {
+            handleChange(e);
+            fetchWards(e.target.value);
+          }}
+          required
+          style={styles.input}
+          disabled={!formData.county_id}
+        >
+          <option value="">Select Constituency</option>
+          {constituencies.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
 
-        {wards.length > 0 && (
-          <select value={wardId} onChange={e => setWardId(e.target.value)} style={inputStyle}>
-            <option value="">Select Ward</option>
-            {wards.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </select>
-        )}
+        <select
+          name="ward_id"
+          value={formData.ward_id}
+          onChange={handleChange}
+          required
+          style={styles.input}
+          disabled={!formData.constituency_id}
+        >
+          <option value="">Select Ward</option>
+          {wards.map((w) => (
+            <option key={w.id} value={w.id}>{w.name}</option>
+          ))}
+        </select>
 
-        <input type="file" accept="image/*" onChange={e => setPhotoFile(e.target.files[0])} style={inputStyle} />
+        <input
+          type="file"
+          name="photo"
+          accept="image/*"
+          onChange={handleChange}
+          style={styles.input}
+        />
 
-        <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? "Saving..." : "Complete Profile"}
+        <button type="submit" disabled={loading} style={styles.button}>
+          {loading ? 'Saving...' : 'Save Profile'}
         </button>
       </form>
     </div>
   );
-}
-
-const inputStyle = {
-  padding: "10px",
-  borderRadius: "5px",
-  border: "1px solid #ccc",
-  fontSize: "14px"
 };
 
-const buttonStyle = {
-  padding: "12px",
-  borderRadius: "5px",
-  border: "none",
-  backgroundColor: "#4CAF50",
-  color: "white",
-  fontSize: "16px",
-  cursor: "pointer"
-};
+export default CompleteProfile;

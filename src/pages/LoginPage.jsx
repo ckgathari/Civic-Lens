@@ -33,14 +33,12 @@ const Login = () => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       if (profileError) throw profileError;
 
-      // Check completeness for leaders/aspirants
-      const isSpecialRole = profile.is_leader || profile.is_aspirant;
-      const isIncomplete = !profile.position || !profile.phone || !profile.national_id || !profile.photo_url;
+      // Check completeness 
 
-      if (isSpecialRole && isIncomplete) {
+      if (!profile) {
         navigate('/complete-profile');
       } else {
         navigate('/dashboard');
