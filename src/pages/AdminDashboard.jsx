@@ -9,6 +9,7 @@ const AdminDashboard = () => {
   const [counties, setCounties] = useState([]);
   const [constituencies, setConstituencies] = useState([]);
   const [wards, setWards] = useState([]);
+  const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
@@ -22,9 +23,21 @@ const AdminDashboard = () => {
     county_id: '',
     constituency_id: '',
     ward_id: '',
-    photo: null
+    photo: null,
+    is_aspirant: false
   });
 
+  // Master list of valid positions
+  const MASTER_POSITIONS = [
+    'President',
+    'Governor',
+    'Senator',
+    'Women Rep',
+    'MP',
+    'MCA'
+  ];
+
+  // Load counties
   useEffect(() => {
     const loadCounties = async () => {
       const { data } = await supabase.from('counties').select('id, name');
@@ -33,6 +46,26 @@ const AdminDashboard = () => {
     loadCounties();
   }, []);
 
+  // Load positions from DB and merge with master list
+  useEffect(() => {
+    const loadPositions = async () => {
+      const { data, error } = await supabase
+        .from('leaders')
+        .select('position')
+        .neq('position', null);
+
+      if (!error && data) {
+        const dbPositions = [...new Set(data.map(p => p.position))];
+        const merged = [...new Set([...MASTER_POSITIONS, ...dbPositions])].sort();
+        setPositions(merged);
+      } else {
+        setPositions(MASTER_POSITIONS);
+      }
+    };
+    loadPositions();
+  }, []);
+
+  // Load constituencies dynamically
   useEffect(() => {
     if (formData.county_id) {
       const loadConstituencies = async () => {
@@ -48,6 +81,7 @@ const AdminDashboard = () => {
     }
   }, [formData.county_id]);
 
+  // Load wards dynamically
   useEffect(() => {
     if (formData.constituency_id) {
       const loadWards = async () => {
@@ -129,7 +163,6 @@ const AdminDashboard = () => {
     const password = generatePassword();
     alert(`Password generated and copied: ${password}`);
 
-    // Sign up user (no email confirmation to allow immediate login)
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password
@@ -147,7 +180,6 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Upload photo if exists
     let photo_url = null;
     if (formData.photo) {
       const fileExt = formData.photo.name.split('.').pop();
@@ -163,12 +195,6 @@ const AdminDashboard = () => {
       }
     }
 
-    // Determine leader/aspirant status
-    const leaderPositions = ['President', 'Governor', 'Senator', 'Women Rep', 'MP', 'MCA'];
-    const isLeader = leaderPositions.includes(formData.position);
-    const isAspirant = !isLeader;
-
-    // Insert into profiles
     const { error: insertError } = await supabase.from('profiles').insert([{
       id: newUserId,
       first_name: formData.first_name,
@@ -180,8 +206,8 @@ const AdminDashboard = () => {
       constituency_id: formData.constituency_id || null,
       ward_id: formData.ward_id || null,
       photo_url,
-      is_leader: isLeader,
-      is_aspirant: isAspirant
+      is_leader: !formData.is_aspirant,
+      is_aspirant: formData.is_aspirant
     }]);
 
     if (insertError) {
@@ -206,7 +232,7 @@ const AdminDashboard = () => {
           </select>
           <select value={filterPosition} onChange={e => setFilterPosition(e.target.value)} style={styles.select}>
             <option value="All">All Positions</option>
-            {['President', 'Governor', 'Senator', 'Women Rep', 'MP', 'MCA'].map(pos => (
+            {positions.map(pos => (
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
@@ -251,32 +277,44 @@ const AdminDashboard = () => {
             <input style={styles.input} type="email" placeholder="Email" onChange={e => setFormData({ ...formData, email: e.target.value })} />
             <input style={styles.input} placeholder="National ID" onChange={e => setFormData({ ...formData, national_id: e.target.value })} />
             <input style={styles.input} placeholder="Phone Number" onChange={e => setFormData({ ...formData, phone_number: e.target.value })} />
-            <select style={styles.input} onChange={e => setFormData({ ...formData, position: e.target.value })}>
+
+            <select style={styles.input} value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })}>
               <option value="">Select Position</option>
-              {['President', 'Governor', 'Senator', 'Women Rep', 'MP', 'MCA'].map(pos => (
+              {positions.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
             </select>
 
-            {['Governor', 'Senator', 'Women Rep', 'MP', 'MCA'].includes(formData.position) && (
-              <select style={styles.input} value={formData.county_id} onChange={e => setFormData({ ...formData, county_id: e.target.value })}>
-                <option value="">Select County</option>
-                {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <input
+                type="checkbox"
+                checked={formData.is_aspirant}
+                onChange={e => setFormData({ ...formData, is_aspirant: e.target.checked })}
+              />
+              Mark as Aspirant
+            </label>
 
-            {['MP', 'MCA'].includes(formData.position) && (
-              <select style={styles.input} value={formData.constituency_id} onChange={e => setFormData({ ...formData, constituency_id: e.target.value })}>
-                <option value="">Select Constituency</option>
-                {constituencies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            )}
+            {formData.position && (
+              <>
+                <select style={styles.input} value={formData.county_id} onChange={e => setFormData({ ...formData, county_id: e.target.value })}>
+                  <option value="">Select County</option>
+                  {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
 
-            {['MCA'].includes(formData.position) && (
-              <select style={styles.input} value={formData.ward_id} onChange={e => setFormData({ ...formData, ward_id: e.target.value })}>
-                <option value="">Select Ward</option>
-                {wards.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
+                {['MP', 'MCA'].includes(formData.position) && (
+                  <select style={styles.input} value={formData.constituency_id} onChange={e => setFormData({ ...formData, constituency_id: e.target.value })}>
+                    <option value="">Select Constituency</option>
+                    {constituencies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
+
+                {formData.position === 'MCA' && (
+                  <select style={styles.input} value={formData.ward_id} onChange={e => setFormData({ ...formData, ward_id: e.target.value })}>
+                    <option value="">Select Ward</option>
+                    {wards.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                )}
+              </>
             )}
 
             <input style={styles.input} type="file" onChange={e => setFormData({ ...formData, photo: e.target.files[0] })} />

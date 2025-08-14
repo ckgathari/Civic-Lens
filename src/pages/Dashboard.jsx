@@ -7,6 +7,7 @@ const Dashboard = () => {
   const [ratings, setRatings] = useState({});
   const [comments, setComments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -19,7 +20,6 @@ const Dashboard = () => {
       try {
         setLoading(true);
 
-        // Get current user
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
 
@@ -29,7 +29,6 @@ const Dashboard = () => {
           return;
         }
 
-        // Get profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -37,43 +36,39 @@ const Dashboard = () => {
           .single();
 
         if (profileError) throw profileError;
+
         if (!profile) {
-          console.warn('No profile found for user:', user.id);
           navigate('/complete-profile');
           return;
         }
 
-        // Get leaders
-        const { data: president, error: presidentError } = await supabase
+        setIsAdmin(!!profile.is_admin);
+
+        const { data: president } = await supabase
           .from('leaders')
           .select('*')
           .eq('position', 'President');
-        if (presidentError) throw presidentError;
 
-        const { data: countyLeaders, error: countyError } = await supabase
+        const { data: countyLeaders } = await supabase
           .from('leaders')
           .select('*')
           .in('position', ['Governor', 'Senator', 'Women Rep'])
           .eq('county_id', profile.county_id);
-        if (countyError) throw countyError;
 
-        const { data: mp, error: mpError } = await supabase
+        const { data: mp } = await supabase
           .from('leaders')
           .select('*')
           .eq('position', 'MP')
           .eq('constituency_id', profile.constituency_id)
           .maybeSingle();
-        if (mpError) throw mpError;
 
-        const { data: mca, error: mcaError } = await supabase
+        const { data: mca } = await supabase
           .from('leaders')
           .select('*')
           .eq('position', 'MCA')
           .eq('ward_id', profile.ward_id)
           .maybeSingle();
-        if (mcaError) throw mcaError;
 
-        // Merge leaders
         const allLeaders = [
           ...(president || []),
           ...(countyLeaders || []),
@@ -149,7 +144,14 @@ const Dashboard = () => {
     <div style={styles.wrapper}>
       <div style={styles.header}>
         <h1 style={styles.title}>🌍 CivicLens Dashboard</h1>
-        <button onClick={handleLogout} style={styles.logout}>Logout</button>
+        <div>
+          {isAdmin && (
+            <Link to="/admin" style={styles.adminLink}>
+              Admin Dashboard
+            </Link>
+          )}
+          <button onClick={handleLogout} style={styles.logout}>Logout</button>
+        </div>
       </div>
 
       <div style={styles.container}>
@@ -163,9 +165,13 @@ const Dashboard = () => {
             <h3 style={styles.name}>{leader.name}</h3>
             <p style={styles.position}>{leader.position}</p>
 
-            <Link to={`/leader-comments/${leader.id}`} style={styles.link}>
+            <button
+              style={styles.button}
+              onClick={() => window.location.href = `/leader/${leader.id}`}
+            >
               View Public Comments →
-            </Link>
+            </button>
+
 
             {renderStars(leader.id)}
             <textarea
@@ -192,98 +198,138 @@ const Dashboard = () => {
 const styles = {
   wrapper: {
     minHeight: '100vh',
-    background: 'linear-gradient(to right, #f0f4ff, #eaf7ff)',
-    fontFamily: 'Segoe UI, sans-serif',
-    padding: '30px'
+    background: 'linear-gradient(120deg, #e3f0ff 0%, #f9f9f9 100%)',
+    fontFamily: "'Inter', Arial, sans-serif",
+    padding: '40px 0'
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '40px'
+    alignItems: 'center',
+    marginBottom: '48px',
+    padding: '0 40px'
   },
   title: {
-    fontSize: '28px',
-    color: '#1a237e'
+    fontSize: '32px',
+    color: '#1a237e',
+    fontWeight: 800,
+    letterSpacing: 1
+  },
+  adminLink: {
+    background: 'linear-gradient(90deg, #1877f2 0%, #42b72a 100%)',
+    color: '#fff',
+    padding: '12px 20px',
+    borderRadius: '8px',
+    textDecoration: 'none',
+    marginRight: '14px',
+    fontWeight: 600,
+    fontSize: '16px',
+    boxShadow: '0 2px 8px rgba(24,119,242,0.08)',
+    transition: 'background 0.2s'
   },
   logout: {
     backgroundColor: '#ef5350',
     color: '#fff',
     border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
+    padding: '12px 22px',
+    borderRadius: '8px',
     cursor: 'pointer',
-    fontWeight: 'bold'
+    fontWeight: 700,
+    fontSize: '16px',
+    boxShadow: '0 2px 8px rgba(239,83,80,0.08)',
+    transition: 'background 0.2s'
   },
   container: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '30px',
-    justifyContent: 'center'
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '36px',
+    justifyContent: 'center',
+    padding: '0 40px'
   },
   card: {
-    width: '300px',
-    backgroundColor: '#ffffff',
-    borderRadius: '15px',
-    padding: '20px',
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
-    transition: 'transform 0.3s ease'
+    width: '340px',
+    backgroundColor: '#fff',
+    borderRadius: '18px',
+    padding: '28px 24px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.09)',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    position: 'relative'
   },
   avatar: {
-    width: '100px',
-    height: '100px',
+    width: '110px',
+    height: '110px',
     borderRadius: '50%',
     objectFit: 'cover',
-    margin: '0 auto 10px',
-    display: 'block'
+    marginBottom: '16px',
+    border: '4px solid #e3f0ff',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
   },
   name: {
     textAlign: 'center',
-    fontSize: '18px',
-    margin: '10px 0 4px',
-    color: '#333'
+    fontSize: '22px',
+    margin: '12px 0 6px',
+    color: '#183153',
+    fontWeight: 700
   },
   position: {
     textAlign: 'center',
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '10px'
+    fontSize: '16px',
+    color: '#4e5d78',
+    marginBottom: '14px',
+    fontWeight: 500
   },
-  link: {
-    display: 'block',
-    textAlign: 'center',
-    fontSize: '13px',
-    color: '#1976d2',
-    textDecoration: 'none',
-    marginBottom: '10px'
+  button: {
+    width: '100%',
+    background: 'linear-gradient(90deg, #1877f2 0%, #42b72a 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '12px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: '16px',
+    marginBottom: '14px',
+    boxShadow: '0 1px 6px rgba(24,119,242,0.10)',
+    transition: 'background 0.2s'
   },
   stars: {
     textAlign: 'center',
-    marginBottom: '10px'
+    marginBottom: '12px',
+    fontSize: '22px'
   },
   textarea: {
     width: '100%',
-    minHeight: '60px',
+    minHeight: '64px',
     borderRadius: '8px',
-    border: '1px solid #ddd',
-    padding: '8px',
-    marginBottom: '10px',
-    fontSize: '14px'
+    border: '1.5px solid #bcd0ee',
+    padding: '12px',
+    marginBottom: '12px',
+    fontSize: '15px',
+    background: '#f7fbff',
+    lineHeight: 1.5,
+    outline: 'none',
+    transition: 'border 0.2s'
   },
   submit: {
     width: '100%',
-    backgroundColor: '#4caf50',
+    backgroundColor: '#42b72a',
     color: '#fff',
     border: 'none',
-    padding: '10px',
+    padding: '12px',
     borderRadius: '8px',
     cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'background-color 0.3s ease'
+    fontWeight: 700,
+    fontSize: '16px',
+    boxShadow: '0 1px 6px rgba(66,183,42,0.10)',
+    transition: 'background 0.2s'
   },
   loading: {
     textAlign: 'center',
-    fontSize: '18px',
-    marginTop: '100px',
+    fontSize: '20px',
+    marginTop: '120px',
     color: '#555'
   }
 };
