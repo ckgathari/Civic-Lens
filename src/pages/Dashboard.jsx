@@ -133,9 +133,10 @@ const Dashboard = () => {
 
   return (
     <div style={styles.wrapper}>
+      {/* Sticky Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>🌍 CivicLens Dashboard</h1>
-        <div>
+        <div style={styles.actions}>
           {isAdmin && (
             <Link to="/admin" style={styles.adminLink}>
               Admin Dashboard
@@ -147,11 +148,17 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Leaders grid */}
       <div style={styles.container}>
         {leaders.map((leader) => (
           <div key={leader.id} style={styles.card}>
             <img
-              src={leader.photo_url || "https://placehold.co/200x200"}
+              src={
+              leader.photo_url ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                leader.name || "Leader"
+              )}&background=random`
+            }
               alt={leader.name}
               style={styles.avatar}
             />
@@ -161,7 +168,7 @@ const Dashboard = () => {
 
             <button
               style={styles.button}
-              onClick={() => (window.location.href = `/leader/${leader.id}`)}
+              onClick={() => navigate(`/leader/${leader.id}`)}
             >
               View Public Page →
             </button>
@@ -177,108 +184,106 @@ const styles = {
     minHeight: "100vh",
     background: "linear-gradient(120deg, #e3f0ff 0%, #f9f9f9 100%)",
     fontFamily: "'Inter', Arial, sans-serif",
-    padding: "40px 0",
+    paddingTop: "100px", // so content isn't hidden by sticky header
   },
   header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 1000,
+    background: "#fff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "48px",
-    padding: "0 40px",
+    padding: "16px 24px",
+    borderBottom: "1px solid #eee",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
   },
   title: {
-    fontSize: "32px",
+    fontSize: "22px",
     color: "#1a237e",
     fontWeight: 800,
-    letterSpacing: 1,
+  },
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
   },
   adminLink: {
     background: "linear-gradient(90deg, #1877f2 0%, #42b72a 100%)",
     color: "#fff",
-    padding: "12px 20px",
+    padding: "10px 16px",
     borderRadius: "8px",
     textDecoration: "none",
-    marginRight: "14px",
     fontWeight: 600,
-    fontSize: "16px",
-    boxShadow: "0 2px 8px rgba(24,119,242,0.08)",
-    transition: "background 0.2s",
+    fontSize: "14px",
   },
   logout: {
     backgroundColor: "#ef5350",
     color: "#fff",
     border: "none",
-    padding: "12px 22px",
+    padding: "10px 18px",
     borderRadius: "8px",
     cursor: "pointer",
-    fontWeight: 700,
-    fontSize: "16px",
-    boxShadow: "0 2px 8px rgba(239,83,80,0.08)",
-    transition: "background 0.2s",
+    fontWeight: 600,
+    fontSize: "14px",
   },
   container: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-    gap: "36px",
-    justifyContent: "center",
-    padding: "0 40px",
+    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gap: "24px",
+    padding: "20px",
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: "18px",
-    padding: "28px 24px",
-    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.09)",
-    transition: "transform 0.2s, box-shadow 0.2s",
+    borderRadius: "16px",
+    padding: "20px",
+    boxShadow: "0 6px 20px rgba(0, 0, 0, 0.06)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    position: "relative",
+    transition: "transform 0.2s",
   },
   avatar: {
-    width: "110px",
-    height: "110px",
+    width: "90px",
+    height: "90px",
     borderRadius: "50%",
     objectFit: "cover",
-    marginBottom: "16px",
-    border: "4px solid #e3f0ff",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    marginBottom: "14px",
+    border: "3px solid #e3f0ff",
   },
   name: {
     textAlign: "center",
-    fontSize: "22px",
-    margin: "12px 0 6px",
+    fontSize: "18px",
+    margin: "10px 0 4px",
     color: "#183153",
     fontWeight: 700,
   },
   position: {
     textAlign: "center",
-    fontSize: "16px",
+    fontSize: "14px",
     color: "#4e5d78",
-    marginBottom: "14px",
-    fontWeight: 500,
+    marginBottom: "10px",
   },
   button: {
+    marginTop: "10px",
     width: "100%",
     background: "linear-gradient(90deg, #1877f2 0%, #42b72a 100%)",
     color: "#fff",
     border: "none",
-    padding: "12px",
+    padding: "10px",
     borderRadius: "8px",
     cursor: "pointer",
-    fontWeight: 700,
-    fontSize: "16px",
-    marginTop: "10px",
-    boxShadow: "0 1px 6px rgba(24,119,242,0.10)",
-    transition: "background 0.2s",
+    fontWeight: 600,
+    fontSize: "14px",
   },
   stars: {
     textAlign: "center",
-    marginBottom: "12px",
-    fontSize: "22px",
+    marginBottom: "8px",
+    fontSize: "18px",
   },
   loading: {
     textAlign: "center",
-    fontSize: "20px",
+    fontSize: "18px",
     marginTop: "120px",
     color: "#555",
   },
